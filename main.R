@@ -2,7 +2,7 @@ source("model.R")
 source("optimization.R")
 
 # (D,K,sigma_t,sigma_0,nb_epochs,nb_MB,nb_NS)
-model <- init_model(2,10,1,1,1,1)
+model <- init_model(2,10,1,1,1,1,10)
 
 data <- list()
 for(t in 1:3){

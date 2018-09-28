@@ -1,4 +1,4 @@
-init_model <- function(D,K,sigma_t,sigma_0,nb_epochs,nb_MB){
+init_model <- function(D,K,sigma_t,sigma_0,nb_epochs,nb_MB,nb_sampleVI){
   require(MASS)
   
   model <- list()
@@ -9,6 +9,7 @@ init_model <- function(D,K,sigma_t,sigma_0,nb_epochs,nb_MB){
   
   model$nb_MB <- nb_MB
   model$nb_epochs <- nb_epochs
+  model$nb_sampleVI <- nb_sampleVI
   
   model$U <- list()
   model$V <- list()
