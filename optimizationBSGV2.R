@@ -3,7 +3,7 @@ library(mixtools)
 
 optim <- function(X_t,model,color){
   logLout <- c()
-  learning_rate <- seq(0.1,0.01,length.out = model$nb_epochs)
+  learning_rate <- seq(0.01,0.01,length.out = model$nb_epochs)
   # print(learning_rate)
   
   vp <- draw_VP_withoutSigma(model) 
@@ -42,7 +42,7 @@ optim <- function(X_t,model,color){
           v <- V[j,]
           x <- t(u) %*% v
           # x <- t(u) %*% v /(sqrt(sum(u * u)) * sqrt(sum(v * v)))
-          
+          # print(x)
           if(x < -13) {
             sig <- x 
           }else{
@@ -262,7 +262,7 @@ logprobaQ <- function(U,V,vp,D){
 source("model.R")
 source("utils.R")
 # (D,K,sigma_t,sigma_0,nb_epochs,nb_MB,nb_sampleVI)
-model <- init_model(100,50,1,1,10,3,200)
+model <- init_model(100,10,1,1,10,3,200)
 model$timePosition
 X_t <- list()
 
@@ -282,15 +282,16 @@ rSBM <- randomSBM(n,e,K,alpha,pi)
 
 
 X_t$P <- as.matrix(rSBM$Adj)
-sum(X_t$N)
+sum(X_t$P)
 # X_t$P
-X_t$N <- 10000 * round((rowSums(X_t$P) %*% t(colSums(X_t$P))) / sum(X_t$P))
+X_t$N <- 5 * round((rowSums(X_t$P) %*% t(colSums(X_t$P))) / sum(X_t$P))
+sum(X_t$N)
 # X_t$N
-
-debug(optim)
+e
+# debug(optim)
 
 blob <- optim(X_t,model,rSBM$cluster)
 plot(blob$embedding,col = rSBM$cluster)
-plot(blob$ll,type= "b")
+plot(blob$ll,type= "b")s
 
 
