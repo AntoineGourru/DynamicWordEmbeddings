@@ -3,18 +3,10 @@ library(mixtools)
 
 optim <- function(X_t,model,color){
   logLout <- c()
-  learning_rate <- seq(0.001,0.0005,length.out = model$nb_epochs)
   # print(learning_rate)
   
   vp <- draw_VP_withoutSigma(model) 
-  # vp <- draw_VP(model) 
-  
-  # W <- X_t$P 
-  # W <- W / rowSums(W)
-  # W <- W + t(W)
-  # svdW <- svd(W)
-  # 
-  # vp$u_mu <- sqrt(svdW$d[2:3]) * svdW$u[,2:3]
+
   Ut <- vp$u_mu
   plot(Ut,col = color)
   logL <- likely(X_t,Ut,Ut,model$D)
@@ -34,58 +26,38 @@ optim <- function(X_t,model,color){
       
       for(samp in 1:model$nb_sampleVI){
         
-        Esv <- mvrnorm(n = model$D,vp$u_mu,diag(rep(1,model$K)))
+        # Esv <- mvrnorm(n = model$D,rep(0,model$K),diag(rep(1,model$K)))
         
         u <- vp$u_mu[i,] + mvrnorm(n = 1,rep(0,model$K),diag(rep(1,model$K))) * vp$u_sigma[i,]
-        
+
         temp_grad <- 0
-        temp_grad2 <- 0
         
         for (j in 1:model$D) {
-          v <- Esv[j,]
+          
           # v <- vp$u_mu[j,] + Esv[j,] * vp$u_sigma[j,]
+          v <- vp$u_mu[j,] 
           
-          # v <- Vt[j,]
           x <- t(u) %*% v
-          # x <- t(u) %*% v /(sqrt(sum(u * u)) * sqrt(sum(v * v)))
-          # print(x)
           
-          # if(x > 13){
-          #   sig <- -x
-          # }else{
-          #   if(x < -36){
-          #     sig <- 0
-          #   }else{
           sig <- 1/(1 + exp(x))
-          #   }
-          # }
           
-          gauche <- X_t$N[i,j] * sig
+          gauche <- X_t$P[i,j] * sig
           
-          # if(x < -13) {
-          #   sig <- x 
-          # }else{
-          #   if(x > 36){
-          #     sig <- 0
-          #   }else{
           sig <- 1/(1 + exp(-x))
-          # }      
-          # }
-          droite <- X_t$P[i,j] * sig
+
+          droite <- X_t$N[i,j] * sig
           
-          grad_mu_u[i,] <-  grad_mu_u[i,] + (v * u * (gauche + droite))
-          # temp_grad2 <- temp_grad2 * v
+          # grad_mu_u[i,] <-  grad_mu_u[i,] + (v * (gauche - droite))
+          temp_grad <- temp_grad + gauche + droite
+          grad_mu_u[i,] <-  grad_mu_u[i,] + (u * (gauche + droite))
         }
-        # grad_mu_u[i,] <-  grad_mu_u[i,] +  (u * temp_grad)
       }
-      # grad_mu_u[i,] <- grad_mu_u[i,] / model$nb_sampleVI - (vp$u_mu[i,])
-      grad_mu_u[i,] <- grad_mu_u[i,] / model$nb_sampleVI 
-      # vp$u_mu[i,] <- vp$u_mu[i,] + learning_rate[epo] * grad_mu_u[i,]
-      vp$u_mu[i,] <- grad_mu_u[i,]
+      # vp$u_mu[i,] <- grad_mu_u[i,] / model$nb_sampleVI
+      vp$u_mu[i,] <- grad_mu_u[i,] / temp_grad - 1
+      
     }
     
     Ut <- vp$u_mu
-    # Vt <- vp$v_mu
     logL <- likely(X_t,Ut,Ut,model$D)
     print(logL)
     logLout <- c(logLout,logL)
@@ -124,10 +96,10 @@ likely <- function(X_t,U,V,D){
       x <- t(u) %*% v
       # x <- t(u) %*% v /(sqrt(sum(u * u)) * sqrt(sum(v * v)))
       
-      if(x < -13){
+      if (x < -13) {
         sig <- x 
       }else{
-        if(x > 36){
+        if (x > 36) {
           sig <- 0
         }else{
           sig <- log(1/(1 + exp(-x)))
@@ -135,10 +107,10 @@ likely <- function(X_t,U,V,D){
       }
       gauche <- X_t$P[i,j] * sig
       
-      if(x > 13){
+      if (x > 13) {
         sig <- -x
       }else{
-        if(x < -36){
+        if (x < -36) {
           sig <- 0
         }else{
           sig <- log(1/(1 + exp(x)))
@@ -157,28 +129,7 @@ likely <- function(X_t,U,V,D){
   }
   return(ll)
 }
-logprobaQ <- function(U,i,D,vp){
-  ll <- 0
-  all <- (1:D)[-i]
-  for (i in all) {
-    u <- U[i,]
-    
-    mu_u <- vp$u_mu[i,]
-    # mu_v <- vp$v_mu[i,]
-    
-    sigma_u <- diag(vp$u_sigma[i,])
-    # sigma_v <- diag(vp$u_sigma[i,])
-    
-    gauche <- log(dmvnorm(u,mu_u,sigma_u))
-    # droite <- log(dmvnorm(u,mu_u,sigma_v))
-    
-    ll <- ll + gauche
-  }
-  if (is.infinite(ll)) {
-    ll <- 0
-  }
-  return(ll)
-}
+
 
 source("model.R")
 source("utils.R")
@@ -195,10 +146,10 @@ intra <- 0.8
 inter <- (1 - intra)/(K-1)
 pi = matrix(inter, K, K)
 diag(pi) = intra
-e <- 5000
+e <- 50000
 rSBM <- randomSBM(n,e,K,alpha,pi)
 
-# rSBM$Adj
+rSBM$Adj
 # rSBM$cluster
 
 
