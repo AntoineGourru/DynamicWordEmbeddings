@@ -15,31 +15,18 @@ optim <- function(X_t,model,color){
     print(paste("eopch :",epo))
     # epo <- 1
     grad_mu_u <- matrix(0,model$D,model$K)
-    # grad_mu_v <- matrix(0,model$D,model$K)
-    
-    # grad_sigma_u <- matrix(0,model$D,model$K)
-    # grad_sigma_v <- matrix(0,model$D,model$K)
-    # print(col)
-    # prim <- which(color == 1)
-    # for (i in prim) {
+    grad_sigma_u <- matrix(0,model$D,model$K)
+
     for (i in 1:model$D) {
-      # i <- 1
-      denom <- 0
       for (samp in 1:model$nb_sampleVI) {
         
-        # Esv <- mvrnorm(n = model$D,rep(0,model$K),diag(rep(1,model$K)))
-        
-        # U_sample <- do.call(rbind,(lapply(1:model$D,function(i) mvrnorm(n = 1,vp$u_mu[i,],diag(rep(1,model$K))))))
-        
-        u <- mvrnorm(n = 1,vp$u_mu[i,],diag(rep(10,model$K)))
+        u <- mvrnorm(n = 1,vp$u_mu[i,],diag(vp$u_sigma[i,]))
         
         ll <- 0
         for (j in 1:model$D) {
           v <- vp$u_mu[j,]
           x <- t(u) %*% v
-          # x <- t(u) %*% v /(sqrt(sum(u * u)) * sqrt(sum(v * v)))
-          
-        
+
           sig <- 1/(1 + exp(-x))
           
           gauche <- X_t$P[i,j] * log(sig)
@@ -52,15 +39,17 @@ optim <- function(X_t,model,color){
           ll <- ll + gauche + droite
 
         }
-        ll <- ll + 10000000000000
-        denom <- denom + ll
-        grad_mu_u[i,] <-  grad_mu_u[i,] + (u * ll)
+        grad_mu_u[i,] <-  grad_mu_u[i,] + ((u - vp$u_mu[i,])  * ll)
+        a <- 0.5 * (((u - vp$u_mu[i,])^2 - vp$u_sigma[i,])/vp$u_sigma[i,]^2) * ll
+        grad_sigma_u[i,] <-  grad_sigma_u[i,] + a
       }
       
       
-      grad_mu_u[i,] <- grad_mu_u[i,] / model$nb_sampleVI
-      denom <- denom / model$nb_sampleVI - 1
-      vp$u_mu[i,] <- grad_mu_u[i,] / rep(denom,2)
+      grad_mu_u[i,] <- grad_mu_u[i,] / model$nb_sampleVI - 1
+      vp$u_mu[i,] <- vp$u_mu[i,] + 0.00005 * grad_mu_u[i,]      
+      
+      grad_sigma_u[i,] <- grad_sigma_u[i,] / model$nb_sampleVI + 0.5*((1 / vp$u_sigma[i,]) - (1/1))
+      vp$u_sigma[i,] <- grad_sigma_u[i,] + 0.00000005 * vp$u_sigma[i,]
     }
 
     Ut <- vp$u_mu
@@ -72,7 +61,7 @@ optim <- function(X_t,model,color){
   
   model$timePosition <- model$timePosition + 1 
   # return(model,logLout)
-  return(list(embedding = Ut,ll=logLout))
+  return(list(embedding = Ut,ll=logLout,sigma = vp$u_sigma))
 }
 
 draw_VP_withoutSigma <- function(model){
@@ -112,8 +101,8 @@ likely <- function(X_t,U,V,D){
       ll <- ll + gauche + droite
       
     }
-    # ll <- ll +  log(dmvnorm(U[i,],rep(0,model$K),diag(rep(1,model$K))))
-    # ll <- ll +  log(dmvnorm(V[i,],rep(0,model$K),diag(rep(1,model$K))))
+    ll <- ll +  log(dmvnorm(U[i,],rep(0,model$K),diag(rep(1,model$K))))
+    ll <- ll +  log(dmvnorm(V[i,],rep(0,model$K),diag(rep(1,model$K))))
   }
   return(ll)
 }
@@ -123,7 +112,7 @@ source("utils.R")
 # (D,K,sigma_t,sigma_0,nb_epochs,nb_MB,nb_sampleVI)
 n <- 20
 
-model <- init_model(n,2,1,1,20,3,10000)
+model <- init_model(n,2,1,1,10,3,500)
 model$timePosition
 X_t <- list()
 
@@ -145,7 +134,7 @@ rSBM$Adj
 X_t$P <- as.matrix(rSBM$Adj)
 X_t$N <- max(X_t$P) - X_t$P
 # View(X_t$N)
-den <- mean(X_t$N)/round((sum(X_t$P) * 2) / (n * n))
+den <- mean(X_t$N)/round((sum(X_t$P) * 1) / (n * n))
 X_t$N <- round(X_t$N / den)
 # View(X_t$P)
 # View(X_t$N)
@@ -153,7 +142,7 @@ X_t$N <- round(X_t$N / den)
 # sum(X_t$N)
 # X_t$N
 # e
-# debug(optim)
+debug(optim)
 # debug(likelyVar)
 
 blob <- optim(X_t,model,rSBM$cluster)
