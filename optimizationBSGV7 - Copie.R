@@ -22,23 +22,21 @@ optim <- function(X_t,model,color){
         
         u <- mvrnorm(n = 1,vp$u_mu[i,],diag(rep(10,model$K)))
         
-        ll <- 0
-        for (j in 1:model$D) {
-          v <- vp$u_mu[j,]
-          x <- t(u) %*% v
+
+          x <- vp$u_mu %*% u
 
           sig <- 1/(1 + exp(-x))
           
-          gauche <- X_t$P[i,j] * log(sig)
+          gauche <- X_t$P[i,] * log(sig)
           
           sig <- 1/(1 + exp(x))
           
-          droite <- X_t$N[i,j] * log(sig)
+          droite <- X_t$N[i,] * log(sig)
           droite <- 0
 
-          ll <- ll + gauche + droite
+          ll <- sum(gauche + droite)
 
-        }
+        # }
         grad_mu_u[i,] <-  grad_mu_u[i,] + ((u - vp$u_mu[i,])  * ll)
         # a <- 0.5 * (((u - vp$u_mu[i,])^2 - vp$u_sigma[i,])/vp$u_sigma[i,]^2) * ll
         # grad_sigma_u[i,] <-  grad_sigma_u[i,] + a
@@ -134,7 +132,7 @@ rSBM$Adj
 X_t$P <- as.matrix(rSBM$Adj)
 X_t$N <- max(X_t$P) - X_t$P
 # View(X_t$N)
-den <- mean(X_t$N)/round((sum(X_t$P) * 1) / (n * n))
+den <- mean(X_t$N)/round((sum(X_t$P) * 5) / (n * n))
 X_t$N <- round(X_t$N / den)
 # View(X_t$P)
 # View(X_t$N)

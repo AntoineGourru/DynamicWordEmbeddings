@@ -15,43 +15,40 @@ optim <- function(X_t,model,color){
     print(paste("eopch :",epo))
     # epo <- 1
     grad_mu_u <- matrix(0,model$D,model$K)
-    # grad_sigma_u <- matrix(0,model$D,model$K)
-
+    grad_sigma_u <- matrix(0,model$D,model$K)
+    
     for (i in 1:model$D) {
-      for (samp in 1:model$nb_sampleVI) {
-        
-        u <- mvrnorm(n = 1,vp$u_mu[i,],diag(rep(10,model$K)))
-        
-        ll <- 0
-        for (j in 1:model$D) {
-          v <- vp$u_mu[j,]
-          x <- t(u) %*% v
-
-          sig <- 1/(1 + exp(-x))
-          
-          gauche <- X_t$P[i,j] * log(sig)
-          
-          sig <- 1/(1 + exp(x))
-          
-          droite <- X_t$N[i,j] * log(sig)
-          droite <- 0
-
-          ll <- ll + gauche + droite
-
-        }
-        grad_mu_u[i,] <-  grad_mu_u[i,] + ((u - vp$u_mu[i,])  * ll)
-        # a <- 0.5 * (((u - vp$u_mu[i,])^2 - vp$u_sigma[i,])/vp$u_sigma[i,]^2) * ll
-        # grad_sigma_u[i,] <-  grad_sigma_u[i,] + a
-      }
+      U <- mvrnorm(n = model$nb_sampleVI,vp$u_mu[i,],diag(rep(10,model$K)))
+      
+      x <- vp$u_mu %*% t(U)
+      
+      sig <- 1/(1 + exp(-x))
+      
+      gauche <- X_t$P[i,] * log(sig)
+      
+      sig <- 1/(1 + exp(x))
+      
+      droite <- X_t$N[i,] * log(sig)
+      # droite <- 0
+      GD <- gauche + droite
+      
+      ll <- colSums(GD)
+      
+      cS <- ((U - vp$u_mu[i,])  * ll)
+      
+      grad_mu_u[i,] <-  grad_mu_u[i,] + sum(cS)
+      # a <- 0.5 * (((u - vp$u_mu[i,])^2 - vp$u_sigma[i,])/vp$u_sigma[i,]^2) * ll
+      # grad_sigma_u[i,] <-  grad_sigma_u[i,] + a
+      # }
       
       
       grad_mu_u[i,] <- grad_mu_u[i,] / model$nb_sampleVI - 1
-      vp$u_mu[i,] <- vp$u_mu[i,] + 0.00005 * grad_mu_u[i,]      
+      vp$u_mu[i,] <- vp$u_mu[i,] + 0.00002 * grad_mu_u[i,]      
       
       # grad_sigma_u[i,] <- grad_sigma_u[i,] / model$nb_sampleVI + 0.5*((1 / vp$u_sigma[i,]) - (1/1))
       # vp$u_sigma[i,] <- grad_sigma_u[i,] + 0.00000005 * vp$u_sigma[i,]
     }
-
+    
     Ut <- vp$u_mu
     logL <- likely(X_t,Ut,Ut,model$D)
     print(logL)
@@ -89,15 +86,15 @@ likely <- function(X_t,U,V,D){
       u <- U[i,]
       v <- V[j,]
       x <- t(u) %*% v
-
+      
       sig <- log(1/(1 + exp(-x)))
       
       gauche <- X_t$P[i,j] * sig
       
       sig <- log(1/(1 + exp(x)))
-
+      
       droite <- X_t$N[i,j] * sig
-      droite <- 0
+      # droite <- 0
       ll <- ll + gauche + droite
       
     }
@@ -134,7 +131,7 @@ rSBM$Adj
 X_t$P <- as.matrix(rSBM$Adj)
 X_t$N <- max(X_t$P) - X_t$P
 # View(X_t$N)
-den <- mean(X_t$N)/round((sum(X_t$P) * 1) / (n * n))
+den <- mean(X_t$N)/round((sum(X_t$P) * 4) / (n * n))
 X_t$N <- round(X_t$N / den)
 # View(X_t$P)
 # View(X_t$N)

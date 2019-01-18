@@ -16,33 +16,31 @@ optim <- function(X_t,model,color){
     # epo <- 1
     grad_mu_u <- matrix(0,model$D,model$K)
     # grad_sigma_u <- matrix(0,model$D,model$K)
-
+    
     for (i in 1:model$D) {
-      for (samp in 1:model$nb_sampleVI) {
-        
-        u <- mvrnorm(n = 1,vp$u_mu[i,],diag(rep(10,model$K)))
-        
-        ll <- 0
-        for (j in 1:model$D) {
-          v <- vp$u_mu[j,]
-          x <- t(u) %*% v
-
-          sig <- 1/(1 + exp(-x))
-          
-          gauche <- X_t$P[i,j] * log(sig)
-          
-          sig <- 1/(1 + exp(x))
-          
-          droite <- X_t$N[i,j] * log(sig)
-          droite <- 0
-
-          ll <- ll + gauche + droite
-
-        }
-        grad_mu_u[i,] <-  grad_mu_u[i,] + ((u - vp$u_mu[i,])  * ll)
-        # a <- 0.5 * (((u - vp$u_mu[i,])^2 - vp$u_sigma[i,])/vp$u_sigma[i,]^2) * ll
-        # grad_sigma_u[i,] <-  grad_sigma_u[i,] + a
-      }
+      
+      # Us <- mvrnorm(n = model$nb_sampleVI,vp$u_mu[i,],diag(vp$u_sigma[i,]))
+      Us <- mvrnorm(n = model$nb_sampleVI,vp$u_mu[i,],diag(rep(10,model$K)))
+      
+      # ll <- 0
+      # for (j in 1:model$D) {
+      prod_Scalaire <- vp$u_mu %*% t(Us)
+      # x <- t(u) %*% v
+      
+      log_sig <- log(1/(1 + exp(-prod_Scalaire)))
+      
+      G <- X_t$P[i,] * log_sig
+      
+      log_sig <- 1/(1 + exp(prod_Scalaire))
+      
+      D <- X_t$N[i,] * log_sig
+      # D <- 0
+      ll <- colSums(G + D)
+      
+      ecart <- t(Us) - vp$u_mu[i,]
+      grad_mu_u[i,] <-  rowSums(ecart  * ll)
+      # a <- 0.5 * (((u - vp$u_mu[i,])^2 - vp$u_sigma[i,])/vp$u_sigma[i,]^2) * ll
+      # grad_sigma_u[i,] <-  grad_sigma_u[i,] + a
       
       
       grad_mu_u[i,] <- grad_mu_u[i,] / model$nb_sampleVI - 1
@@ -51,7 +49,7 @@ optim <- function(X_t,model,color){
       # grad_sigma_u[i,] <- grad_sigma_u[i,] / model$nb_sampleVI + 0.5*((1 / vp$u_sigma[i,]) - (1/1))
       # vp$u_sigma[i,] <- grad_sigma_u[i,] + 0.00000005 * vp$u_sigma[i,]
     }
-
+    
     Ut <- vp$u_mu
     logL <- likely(X_t,Ut,Ut,model$D)
     print(logL)
@@ -66,10 +64,10 @@ optim <- function(X_t,model,color){
 
 draw_VP_withoutSigma <- function(model){
   vp <- list()
-  vp$u_mu <- mvrnorm(n = model$D, rep(0,model$K),diag(rep(0.1,model$K)))
-  vp$v_mu <- mvrnorm(n = model$D, rep(0,model$K),diag(rep(0.1,model$K)))
-  vp$u_sigma <- matrix(1,model$D,model$K)
-  vp$v_sigma <- matrix(1,model$D,model$K)
+  vp$u_mu <- mvrnorm(n = model$D, rep(0,model$K),diag(rep(1,model$K)))
+  vp$v_mu <- mvrnorm(n = model$D, rep(0,model$K),diag(rep(1,model$K)))
+  vp$u_sigma <- matrix(10,model$D,model$K)
+  vp$v_sigma <- matrix(10,model$D,model$K)
   return(vp)
 }
 
@@ -89,15 +87,15 @@ likely <- function(X_t,U,V,D){
       u <- U[i,]
       v <- V[j,]
       x <- t(u) %*% v
-
+      
       sig <- log(1/(1 + exp(-x)))
       
       gauche <- X_t$P[i,j] * sig
       
       sig <- log(1/(1 + exp(x)))
-
+      
       droite <- X_t$N[i,j] * sig
-      droite <- 0
+
       ll <- ll + gauche + droite
       
     }
@@ -127,7 +125,7 @@ diag(pi) = intra
 e <- 50000
 rSBM <- randomSBM(n,e,K,alpha,pi)
 
-rSBM$Adj
+# rSBM$Adj
 # rSBM$cluster
 
 
