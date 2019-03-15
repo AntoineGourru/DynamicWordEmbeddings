@@ -1,7 +1,7 @@
 optimi <- function(X_t,model,color){
   logLout <- c()
   
-  vp <- draw_VP_withoutSigma(model) 
+  vp <- draw_VP(model) 
   
   Ut <- vp$u_mu
   Vt <- vp$v_mu
@@ -13,18 +13,26 @@ optimi <- function(X_t,model,color){
   C <- X_t$P - X_t$N 
   
   
+  A <- vp$u_sigma * vp$u_sigma + vp$u_mu * vp$u_mu
+  
   for (epo in 1:model$nb_epochs) {
     print(paste("eopch :",epo))
     
     #XI
-    
+    B <- vp$v_sigma*vp$v_sigma + vp$v_mu*vp$v_mu
     for (i in 1:model$D) {
-      for (j in 1:model$D) {
-        A <- (vp$u_sigma[i,] * vp$u_sigma[i,] + vp$u_mu[i,] * vp$u_mu[i,]) * (vp$v_sigma[j,]*vp$v_sigma[j,] + vp$v_mu[j,]*vp$v_mu[j,])
-        vp$xi[i,j] <- sqrt(sum(A))
-        # print(vp$xi[i,j])
-      }
+      
+      A[i,] * B
+      
+      vp$xi[i,] <- sqrt(colSums(A))
+      # print(vp$xi[i,j])
+      
     }
+    
+    u_mu_temp <-  vp$u_mu
+    v_mu_temp <- vp$v_mu
+    u_sigma_temp <- vp$u_sigma
+    v_sigma_temp <- vp$v_sigma
     
     for (i in 1:model$D) {
       # R
@@ -43,9 +51,24 @@ optimi <- function(X_t,model,color){
       P <- P + diag(rep(1,model$K))
       
       Pm1 <- solve(P)
-      vp$u_mu[i,] <- Pm1 %*% r_ui
+      u_mu_temp[i,] <- Pm1 %*% r_ui
       
-      vp$u_sigma[i,] <- diag(Pm1)
+      u_sigma_temp[i,] <- diag(Pm1)
+      
+    }
+    
+    vp$u_mu <- u_mu_temp 
+    vp$u_sigma  <- u_sigma_temp
+    
+    #XI
+    
+    A <- vp$u_sigma * vp$u_sigma + vp$u_mu * vp$u_mu
+    for (i in 1:model$D) {
+      
+      A[i,] * B
+      
+      vp$xi[i,] <- sqrt(colSums(A))
+      # print(vp$xi[i,j])
       
     }
     
@@ -66,11 +89,15 @@ optimi <- function(X_t,model,color){
       P <- P + diag(rep(1,model$K))
       
       Pm1 <- solve(P)
-      vp$v_mu[i,] <- Pm1 %*% r_vi
+      v_mu_temp[i,] <- Pm1 %*% r_vi
       
-      vp$v_sigma[i,] <- diag(Pm1)
+      v_sigma_temp[i,] <- diag(Pm1)
       
     }
+    
+    
+    vp$v_mu <- v_mu_temp
+    vp$v_sigma <- v_sigma_temp
     
     Ut <- vp$u_mu
     Vt <- vp$v_mu
@@ -85,7 +112,7 @@ optimi <- function(X_t,model,color){
   return(list(embedding = Ut,ll=logLout,sigma = vp$u_sigma))
 }
 
-draw_VP_withoutSigma <- function(model){
+draw_VP <- function(model){
   vp <- list()
   vp$u_mu <- mvrnorm(n = model$D, rep(0,model$K),diag(rep(1,model$K)))
   vp$v_mu <- mvrnorm(n = model$D, rep(0,model$K),diag(rep(1,model$K)))
@@ -95,17 +122,8 @@ draw_VP_withoutSigma <- function(model){
   return(vp)
 }
 
-draw_VP <- function(model){
-  vp <- list()
-  vp$u_mu <- mvrnorm(n = model$D, rep(0,model$K),diag(rep(1,model$K)))
-  vp$v_mu <- mvrnorm(n = model$D, rep(0,model$K),diag(rep(1,model$K)))
-  vp$u_sigma <- abs(mvrnorm(n = model$D, rep(0,model$K),diag(rep(1,model$K))))
-  vp$v_sigma <- abs(mvrnorm(n = model$D, rep(0,model$K),diag(rep(1,model$K))))
-  return(vp)
-}
-
 likely <- function(X_t,U,V){
-  
+  require(mixtools)
   x <- U %*% t(V)
   
   sig <- -log(1 + exp(-x))
@@ -118,8 +136,8 @@ likely <- function(X_t,U,V){
   
   ll <- sum(gauche + droite)
   
-  # ll <- ll +  log(dmvnorm(U[i,],rep(0,model$K),diag(rep(1,model$K))))
-  # ll <- ll +  log(dmvnorm(V[i,],rep(0,model$K),diag(rep(1,model$K))))
+  ll <- ll +  sum(apply(U,1,function(x){log(dmvnorm(x,rep(0,model$K),diag(rep(1,model$K))))}))
+  ll <- ll +  sum(apply(V,1,function(x){log(dmvnorm(x,rep(0,model$K),diag(rep(1,model$K))))}))
   return(ll)
 }
 
