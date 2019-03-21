@@ -20,14 +20,9 @@ optimi <- function(X_t,model,color){
     
     #XI
     B <- vp$v_sigma*vp$v_sigma + vp$v_mu*vp$v_mu
-    for (i in 1:model$D) {
-      
-      A[i,] * B
-      
-      vp$xi[i,] <- sqrt(colSums(A))
-      # print(vp$xi[i,j])
-      
-    }
+    
+    vp$xi <- sqrt(A %*% t(B))
+    
     
     u_mu_temp <-  vp$u_mu
     v_mu_temp <- vp$v_mu
@@ -36,7 +31,7 @@ optimi <- function(X_t,model,color){
     
     for (i in 1:model$D) {
       # R
-      r_ui <- colSums(C[i,] * vp$v_mu)
+      r_ui <- 0.5 * colSums(C[i,] * vp$v_mu)
       
       #P
       P <- matrix(0,model$K,model$K)
@@ -63,18 +58,12 @@ optimi <- function(X_t,model,color){
     #XI
     
     A <- vp$u_sigma * vp$u_sigma + vp$u_mu * vp$u_mu
-    for (i in 1:model$D) {
-      
-      A[i,] * B
-      
-      vp$xi[i,] <- sqrt(colSums(A))
-      # print(vp$xi[i,j])
-      
-    }
+    
+    vp$xi <- sqrt(A %*% t(B))
     
     for (i in 1:model$D) {
       # R
-      r_vi <- colSums(C[,i] * vp$u_mu)
+      r_vi <- 0.5 * colSums(C[,i] * vp$u_mu)
       
       #P
       P <- matrix(0,model$K,model$K)
