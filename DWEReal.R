@@ -14,6 +14,7 @@ optimZero <- function(X_t,model,vp){
   # for (epo in 1:) {
     print(paste("eopch :",epo))
     
+    for (ep2 in 1:10){
     #XI
     A <- vp$u_sigma * vp$u_sigma + vp$u_mu * vp$u_mu
     B <- vp$v_sigma*vp$v_sigma + vp$v_mu*vp$v_mu
@@ -33,13 +34,13 @@ optimZero <- function(X_t,model,vp){
       for (j in 1:model$D) {
         E <- diag(vp$v_sigma[j,]) + vp$v_mu[j,] %*% t(vp$v_mu[j,])
         sig_xi <- 1/(1 + exp(-vp$xi[i,j]))
-        deux_lambda_xi <- (1/sig_xi)  * (sig_xi  - 0.5)
+        deux_lambda_xi <- (1/vp$xi[i,j])  * (sig_xi  - 0.5)
         
         P <- P + (deux_lambda_xi *  E)
         
       }
       P <- P + diag(rep(model$tau,model$K))
-      
+
       Pm1 <- solve(P)
       u_mu_temp[i,] <- Pm1 %*% r_ui
       
@@ -49,12 +50,15 @@ optimZero <- function(X_t,model,vp){
   
     vp$u_mu <- u_mu_temp
     vp$u_sigma  <- u_sigma_temp
+    }
 
     #XI
+    
+    for (ep2 in 1:10){
     A <- vp$u_sigma * vp$u_sigma + vp$u_mu * vp$u_mu
     B <- vp$v_sigma*vp$v_sigma + vp$v_mu*vp$v_mu
     vp$xi <- sqrt(A %*% t(B))
-    # 
+    
     for (i in 1:model$D) {
       # R
       r_vi <- 0.5 * colSums(C[,i] * vp$u_mu)
@@ -64,7 +68,7 @@ optimZero <- function(X_t,model,vp){
       for (j in 1:model$D) {
         E <- diag(vp$u_sigma[j,]) + vp$u_mu[j,] %*% t(vp$u_mu[j,])
         sig_xi <- 1/(1 + exp(-vp$xi[j,i]))
-        deux_lambda_xi <- (1/sig_xi)  * (sig_xi  - 0.5)
+        deux_lambda_xi <- (1/vp$xi[j,i])  * (sig_xi  - 0.5)
         
         P <- P + (deux_lambda_xi *  E)
         
@@ -78,11 +82,11 @@ optimZero <- function(X_t,model,vp){
       
     }
     
-    vp$u_mu <- u_mu_temp 
-    vp$u_sigma  <- u_sigma_temp
-    
+
     vp$v_mu <- v_mu_temp
     vp$v_sigma <- v_sigma_temp
+    
+    }
     
     Ut <- vp$u_mu
     Vt <- vp$v_mu
@@ -258,8 +262,8 @@ likely <- function(X_t,U,V){
   
   ll <- sum(gauche + droite)
   
-  ll <- ll +  sum(apply(U,1,function(x){log(dmvnorm(x,rep(0,model$K),diag(rep(1,model$K))))}))
-  ll <- ll +  sum(apply(V,1,function(x){log(dmvnorm(x,rep(0,model$K),diag(rep(1,model$K))))}))
+  ll <- ll +  sum(apply(U,1,function(x){log(dmvnorm(x,rep(0,model$K),diag(rep(1/model$tau,model$K))))}))
+  ll <- ll +  sum(apply(V,1,function(x){log(dmvnorm(x,rep(0,model$K),diag(rep(1/model$tau,model$K))))}))
   return(ll)
 }
 
@@ -292,11 +296,12 @@ library(readr)
 data <- read_delim("input/export_articles_EGC_2004_2018.csv", 
                                             "\t", escape_double = FALSE, na = "empty", 
                                             trim_ws = TRUE)
-
+ind <- which(data$year == 2017)
 data <- data[,c(3,4,5)]
 data[,4] <- apply(data,1,function(x){paste(x[2],x[3])})
 data <- data[,c(1,4)]
 
+data <- data[ind,]
 # Create X
 X_t <- list()
 library(tm)
@@ -315,14 +320,14 @@ library(text2vec)
 iterator <- itoken(txt, tokenizer=space_tokenizer, progressbar=FALSE)
 vocabulary <- create_vocabulary(iterator)
 # print(sum(vocabulary$term_count))
-pruned_vocabulary <- prune_vocabulary(vocabulary,  term_count_min = 30)
+pruned_vocabulary <- prune_vocabulary(vocabulary,  term_count_min = 3)
 vectorizer <- vocab_vectorizer(pruned_vocabulary)
 l <- 10
 X_t$P <- as.matrix(create_tcm(iterator, vectorizer, skip_grams_window=l,skip_grams_window_context = "symmetric", weights=rep(1, l)))
 X_t$P <- X_t$P + t(X_t$P)
 vocab <- pruned_vocabulary$term
-
-## Custom
+View(cbind(vocab,colSums(X_t$P)))
+# # Custom
 # Bow <- lapply(txt,Boost_tokenizer)
 # word <- unlist(Bow)
 # tab <- table(word)
@@ -330,7 +335,7 @@ vocab <- pruned_vocabulary$term
 # freq <- as.vector(table(word))
 # vocab <- names(tab)
 # 
-# naze <- which(freq<30)
+# naze <- which(freq<3)
 # freq <- freq[-naze]
 # vocab <- vocab[-naze]
 # 
@@ -349,33 +354,37 @@ vocab <- pruned_vocabulary$term
 # diag(X_t$P) <- 0
 # sum(X_t$P)
 
+save <- X_t$P
 
+X_t$P <- save 
 # Sub sampling
 freq <- colSums(X_t$P)
 freq <- freq /sum(freq)
 # freq <-  1 - sqrt(0.00001/freq)
-freq <-  1 - sqrt(0.00008/freq)
+freq <-  1 - sqrt(0.0007/freq)
+
+#avec fenetre
+# freq <-  1 - sqrt(0.00005/freq)
 
 X_t$P <- t(round(apply(X_t$P,1,function(x){x - freq*x})))
 X_t$P
-sum(X_t$P)
+sum(X_t$P) 
 X_t$N <- 5 * round((rowSums(X_t$P) %*% t(colSums(X_t$P))) / sum(X_t$P))
 which(rowSums(X_t$P) == 0)
 View(cbind(vocab,colSums(X_t$P)))
 # X_t$P <- bob
 
-# X_t$P <- X_t$P[-131,-131]
-# X_t$N <- X_t$N[-131,-131]
-# vocab <- vocab[-131]
-X_t$P <- X_t$P[-463,-463]
-X_t$N <- X_t$N[-463,-463]
-vocab <- vocab[-463]
+don <- which(vocab =="données")
+
+X_t$P <- X_t$P[-don,-don]
+X_t$N <- X_t$N[-don,-don]
+vocab <- vocab[-don]
 # T 1
 
 # (D,K,sigma_t,tau,nb_epochs)
-model <- init_model(length(vocab),100,1,tau = 0.5,nb_epochs = 5)
+model <- init_model(length(vocab),100,1,tau = 0.5,nb_epochs = 12)
 vp <- draw_VP(model) 
-debug(optimZero)
+# debug(optimZero)
 out <- optimZero(X_t,model,vp)
 model <- out$model
 plot(model$LL[[1]])
