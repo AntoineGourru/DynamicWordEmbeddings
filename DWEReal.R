@@ -7,16 +7,21 @@ optimZero <- function(X_t,model,vp){
   
   Ut <- vp$u_mu
   Vt <- vp$v_mu
-
-  freq <- colSums(X_t)
+  
+  # logL <- likely(X_t$P,X_t$N,Ut,Vt)
+  # print(logL)
+  
+  freq <- colSums(X_t$P)
   freq <- freq /sum(freq)
   freq <-  1 - sqrt(0.0002/freq)
   N <- length(vocab)
   
+  #Init P
+  
   for (epo in 1:model$nb_epochs) {
     print(paste("eopch :",epo))
     
-    Pos <- X_t
+    Pos <- X_t$P
     for (j in 1:N){
       for(i in 1:N){
         Pos[i,j] <- Pos[i,j] - sum(rbinom(Pos[i,j],1,freq[j]))
@@ -57,7 +62,7 @@ optimZero <- function(X_t,model,vp){
         
         E <- diag(vp$u_sigma[j,]) + vp$u_mu[j,] %*% t(vp$u_mu[j,])
         
-        P_v <- P_v + abs(C[i,j]) * (matrix(deux_lambda_xi,model$K,model$K) *  E)
+        P_v <- P_v + abs(C[j,i]) * (matrix(deux_lambda_xi,model$K,model$K) *  E)
         R_v <- R_v + 0.5 * C[j,i] * vp$u_mu[j,]
       }
       
@@ -79,7 +84,7 @@ optimZero <- function(X_t,model,vp){
     Ut <- vp$u_mu
     Vt <- vp$v_mu
     
-    logL <- likely(Pos,Neg,Ut,Vt)
+    logL <- likely(X_t$P,X_t$N,Ut,Vt)
     print(logL)
     logLout <- c(logLout,logL)
     plot(Ut)
@@ -250,8 +255,8 @@ likely <- function(Pos,Neg,U,V){
   
   ll <- sum(gauche + droite)
   
-  ll <- ll +  sum(apply(U,1,function(x){log(dmvnorm(x,rep(0,model$K),diag(rep(1/model$tau,model$K))))}))
-  ll <- ll +  sum(apply(V,1,function(x){log(dmvnorm(x,rep(0,model$K),diag(rep(1/model$tau,model$K))))}))
+  # ll <- ll +  sum(apply(U,1,function(x){log(dmvnorm(x,rep(0,model$K),diag(rep(1/model$tau,model$K))))}))
+  # ll <- ll +  sum(apply(V,1,function(x){log(dmvnorm(x,rep(0,model$K),diag(rep(1/model$tau,model$K))))}))
   return(ll)
 }
 
@@ -317,10 +322,12 @@ X_t$P <- as.matrix(create_tcm(iterator, vectorizer, skip_grams_window=l,skip_gra
 X_t$P <- X_t$P + t(X_t$P)
 vocab <- pruned_vocabulary$term
 View(cbind(vocab,colSums(X_t$P)))
-ind <- sort(colSums(X_t$P),decreasing = T,index.return=T)$ix[1:20]
+# ind <- sort(colSums(X_t$P),decreasing = T,index.return=T)$ix[1:20]
+# 
+# X_t$P <- X_t$P[-ind,-ind]
+# vocab <- vocab[-ind]
 
-X_t$P <- X_t$P[-ind,-ind]
-vocab <- vocab[-ind]
+X_t$N <- 5 * round((rowSums(X_t$P) %*% t(colSums(X_t$P))) / sum(X_t$P))
 # T 1
 # # Custom
 # Bow <- lapply(txt,Boost_tokenizer)
@@ -362,17 +369,20 @@ vocab <- vocab[-ind]
 
 
 # (D,K,sigma_t,tau,nb_epochs)
-model <- init_model(length(vocab),100,1,tau = 0.5,nb_epochs = 15)
+# debug(likely)
+model <- init_model(length(vocab),100,1,tau = 1,nb_epochs = 4)
 vp <- draw_VP(model) 
-# debug(optimZero)
-out <- optimZero(X_t$P,model,vp)
+
+out <- optimZero(X_t,model,vp)
 model <- out$model
 plot(model$LL[[1]])
 vp <- out$vp
 
 N <- length(vocab)
 emb <- model$U[[1]] / apply(model$U[[1]],1,function(x){sqrt(sum(x * x))})
+# emb <- model$U[[1]] 
 embV <- model$V[[1]] / apply(model$V[[1]],1,function(x){sqrt(sum(x * x))})
+# embV <- model$V[[1]] 
 # apply(emb,1,function(x){sqrt(sum(x * x))})
 cosine <- emb %*% t(embV)
 res <- matrix("",N,4)
@@ -384,6 +394,15 @@ for(i in 1:N){
 }
 View(res)
 
+library(plotly)
+Sys.setenv("plotly_username"="AntoineGourru")
+Sys.setenv("plotly_api_key"="Vhnv9xPEeRYTicy0cenf")
+##Ploty
+embedding <- as.data.frame(model$V[[1]] )
+
+p <- plot_ly(embedding, x = ~embedding$V1, y = ~embedding$V2, type = 'scatter', mode = 'markers',
+             text = ~vocab,hoverinfo = 'text')  
+p
 
 
 # # T 2
