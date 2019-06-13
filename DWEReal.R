@@ -13,23 +13,37 @@ optimZero <- function(X_t,model,vp){
   
   freq <- colSums(X_t$P)
   freq <- freq /sum(freq)
-  freq <-  1 - sqrt(0.0002/freq)
+  freq <-  1 - sqrt(0.0001/freq)
+  freq[freq<0] <- 0
+  print(freq)
   N <- length(vocab)
   
   #Init P
-  
+  oldPu <- list()
+  oldPv <- list()
+  oldRu <- list()
+  oldRv <- list()
+  beta <- 0
   for (epo in 1:model$nb_epochs) {
     print(paste("eopch :",epo))
-    
     Pos <- X_t$P
     for (j in 1:N){
       for(i in 1:N){
         Pos[i,j] <- Pos[i,j] - sum(rbinom(Pos[i,j],1,freq[j]))
       }
     }
-    Neg <- 5 * round((rowSums(Pos) %*% t(colSums(Pos))) / sum(Pos))
+    
+    freqNeg <- (rowSums(Pos)/sum(rowSums(Pos)))^(3/4)
+    freqNeg <- freqNeg /sum(freqNeg)
+    
+    NN <- rowSums(Pos)
+    Neg <- Pos
+    for(i in 1:nrow(X_t$P)){
+      Neg[i,] <- rmultinom(1,NN[i],freqNeg)
+    }
     
     C <- Pos - Neg
+    
     
     for (i in 1:model$D) {
       
@@ -42,8 +56,9 @@ optimZero <- function(X_t,model,vp){
       P_v <- matrix(0,model$K,model$K)
       R_v <- rep(0,model$K)
       
-      for(j in 1:model$D){
 
+      for(j in 1:model$D){
+        
         
         a_j <- vp$u_sigma[j,] + vp$u_mu[j,] * vp$u_mu[j,]
         b_j <- vp$v_sigma[j,] + vp$v_mu[j,] * vp$v_mu[j,]
@@ -63,12 +78,22 @@ optimZero <- function(X_t,model,vp){
         E <- diag(vp$u_sigma[j,]) + vp$u_mu[j,] %*% t(vp$u_mu[j,])
         
         P_v <- P_v + abs(C[j,i]) * (matrix(deux_lambda_xi,model$K,model$K) *  E)
+        
         R_v <- R_v + 0.5 * C[j,i] * vp$u_mu[j,]
       }
       
       P_u <- P_u + diag(rep(model$tau,model$K))
       P_v <- P_v + diag(rep(model$tau,model$K))
       
+      
+      
+      if(epo>5){
+        beta <- (epo-5)^(-0.7)
+        P_u <-  beta * P_u + (1-beta) * oldPu[[i]]
+        P_v <-  beta * P_v + (1-beta) * oldPv[[i]]
+        R_u <-  beta * R_u + (1-beta) * oldRu[[i]]
+        R_v <-  beta * R_v + (1-beta) * oldRv[[i]]
+      }
       # Update U
       Pm1 <- solve(P_u)
       vp$u_mu[i,] <- Pm1 %*% R_u
@@ -79,8 +104,16 @@ optimZero <- function(X_t,model,vp){
       vp$v_mu[i,] <- Pm1 %*% R_v
       vp$v_sigma[i,] <- diag(Pm1)
       
+      
+      oldPu[[i]] <- P_u
+      oldPv[[i]] <- P_v
+      oldRu[[i]] <- R_u
+      oldRv[[i]] <- R_v
+      
+      
     }
-    
+
+    print(beta)
     Ut <- vp$u_mu
     Vt <- vp$v_mu
     
@@ -98,137 +131,6 @@ optimZero <- function(X_t,model,vp){
   
   return(list(model = model,vp = vp))
 }
-
-## Attention il faut refaire le copier coler prpre tahu
-# optimT <- function(X_t,model,vp){
-#   logLout <- c()
-#   
-#   Ut <- vp$u_mu
-#   Vt <- vp$v_mu
-#   
-#   # plot(Ut,col = color)
-#   logL <- likely(X_t,Ut,Vt)
-#   print(logL)
-#   
-#   C <- X_t$P - X_t$N 
-#   
-#   Vm1 <- vp$v_mu
-#   Um1 <- vp$u_mu
-#   sigma_U_Pm1 <- vp$u_sigma
-#   sigma_V_Pm1 <- vp$v_sigma
-#   
-#   for(i in 1:model$D){
-#     sigma_U_Pm1[i,] <- (1/(vp$u_sigma[i,] + model$sigma_t) + 1/model$tau)
-#     Um1[i,] <- sigma_U_Pm1[i,] * (1/(vp$u_sigma[i,] + model$sigma_t)) * vp$u_mu[i,]
-#   }
-#   
-#   for(i in 1:model$D){
-#     sigma_V_Pm1[i,] <- (1/(vp$v_sigma[i,] + model$sigma_t) + 1/model$tau)
-#     Vm1[i,] <- sigma_V_Pm1[i,] * (1/(vp$v_sigma[i,] + model$sigma_t)) * vp$v_mu[i,]
-#   }
-#   
-#   
-#   
-#   A <- vp$u_sigma * vp$u_sigma + vp$u_mu * vp$u_mu
-#   for (epo in 1:model$nb_epochs) {
-#     print(paste("eopch :",epo))
-#     
-#     #XI
-#     B <- vp$v_sigma*vp$v_sigma + vp$v_mu*vp$v_mu
-#     for (i in 1:model$D) {
-#       
-#       bob <- A[i,] * B
-#       
-#       vp$xi[i,] <- sqrt(rowSums(bob))
-#       
-#     }
-#     
-#     u_mu_temp <-  vp$u_mu
-#     v_mu_temp <- vp$v_mu
-#     u_sigma_temp <- vp$u_sigma
-#     v_sigma_temp <- vp$v_sigma
-#     
-#     for (i in 1:model$D) {
-#       # R
-#       r_ui <- 0.5 * colSums(C[i,] * vp$v_mu) + (sigma_U_Pm1[i,] * Um1[i,])
-#       
-#       #P
-#       P <- matrix(0,model$K,model$K)
-#       for (j in 1:model$D) {
-#         E <- diag(vp$v_sigma[j,]) + vp$v_mu[j,] %*% t(vp$v_mu[j,])
-#         sig_xi <- 1/(1 + exp(-vp$xi[i,j]))
-#         deux_lambda_xi <- (1/sig_xi)  * (sig_xi  - 0.5)
-#         
-#         P <- P + (deux_lambda_xi *  E)
-#         
-#       }
-#       P <- P + diag(rep(1,model$K)) + sigma_U_Pm1[i,]
-#       
-#       Pm1 <- solve(P)
-#       u_mu_temp[i,] <- Pm1 %*% r_ui
-#       
-#       u_sigma_temp[i,] <- diag(Pm1)
-#       
-#     }
-#     
-#     vp$u_mu <- u_mu_temp 
-#     vp$u_sigma  <- u_sigma_temp
-#     
-#     #XI
-#     
-#     A <- vp$u_sigma * vp$u_sigma + vp$u_mu * vp$u_mu
-#     for (i in 1:model$D) {
-#       
-#       bob <- A[i,] * B
-#       
-#       vp$xi[i,] <- sqrt(rowSums(bob))
-#       # print(vp$xi[i,j])
-#       
-#     }
-#     
-#     for (i in 1:model$D) {
-#       # R
-#       r_vi <- 0.5 * colSums(C[,i] * vp$u_mu) + (sigma_V_Pm1[i,] * Vm1[i,])
-#       
-#       #P
-#       P <- matrix(0,model$K,model$K)
-#       for (j in 1:model$D) {
-#         E <- diag(vp$u_sigma[j,]) + vp$u_mu[j,] %*% t(vp$u_mu[j,])
-#         sig_xi <- 1/(1 + exp(-vp$xi[j,i]))
-#         deux_lambda_xi <- (1/sig_xi)  * (sig_xi  - 0.5)
-#         
-#         P <- P + (deux_lambda_xi *  E)
-#         
-#       }
-#       P <- P + diag(rep(1,model$K)) + sigma_V_Pm1[i,]
-#       
-#       Pm1 <- solve(P)
-#       v_mu_temp[i,] <- Pm1 %*% r_vi
-#       
-#       v_sigma_temp[i,] <- diag(Pm1)
-#       
-#     }
-#     
-#     
-#     vp$v_mu <- v_mu_temp
-#     vp$v_sigma <- v_sigma_temp
-#     
-#     Ut <- vp$u_mu
-#     Vt <- vp$v_mu
-#     
-#     logL <- likely(X_t,Ut,Vt)
-#     print(logL)
-#     logLout <- c(logLout,logL)
-#   } # epo
-#   
-#   model$U[[model$timePosition]] <- Ut
-#   model$V[[model$timePosition]] <- Vt
-#   model$LL[[model$timePosition]] <- logLout
-#   
-#   model$timePosition <- model$timePosition + 1 
-#   
-#   return(list(model = model,vp = vp))
-# }
 
 
 draw_VP <- function(model){
@@ -314,63 +216,29 @@ library(text2vec)
 iterator <- itoken(txt, tokenizer=space_tokenizer, progressbar=FALSE)
 vocabulary <- create_vocabulary(iterator)
 # print(sum(vocabulary$term_count))
-pruned_vocabulary <- prune_vocabulary(vocabulary,  term_count_min = 30)
+pruned_vocabulary <- prune_vocabulary(vocabulary,  term_count_min = 20,doc_proportion_max = 0.8)
 # pruned_vocabulary <- prune_vocabulary(vocabulary,  term_count_min = 10)
 vectorizer <- vocab_vectorizer(pruned_vocabulary)
-l <- 10
+l <- 4
 X_t$P <- as.matrix(create_tcm(iterator, vectorizer, skip_grams_window=l,skip_grams_window_context = "symmetric", weights=rep(1, l)))
 X_t$P <- X_t$P + t(X_t$P)
 vocab <- pruned_vocabulary$term
 View(cbind(vocab,colSums(X_t$P)))
-# ind <- sort(colSums(X_t$P),decreasing = T,index.return=T)$ix[1:20]
-# 
-# X_t$P <- X_t$P[-ind,-ind]
-# vocab <- vocab[-ind]
 
-X_t$N <- 5 * round((rowSums(X_t$P) %*% t(colSums(X_t$P))) / sum(X_t$P))
-# T 1
-# # Custom
-# Bow <- lapply(txt,Boost_tokenizer)
-# word <- unlist(Bow)
-# tab <- table(word)
-# 
-# freq <- as.vector(table(word))
-# vocab <- names(tab)
-# 
-# naze <- which(freq<3)
-# freq <- freq[-naze]
-# vocab <- vocab[-naze]
-# 
-# sort(freq)
-# dT <- matrix(0,nrow = length(Bow), ncol = length(vocab))
-# 
-# for (i in 1:length(Bow)) {
-#   for (mot in Bow[[i]]) {
-#     j <- which(vocab == tolower(mot))
-#     dT[i,j] <- dT[i,j] + 1
-#   }
-# }
-# 
-# 
-# X_t$P <- t(dT) %*% dT
-# diag(X_t$P) <- 0
+freqNeg <- (rowSums(X_t$P)/sum(rowSums(X_t$P)))^(3/4)
+freqNeg <- freqNeg /sum(freqNeg)
 
-# null <- which(rowSums(X_t$P) == 0)
-# 
-# if(length(null)>0){
-#   X_t$P <- X_t$P[-null,-null]
-#   X_t$N <- X_t$N[-null,-null]
-#   vocab <- vocab[-null]
-#   null <- which(rowSums(X_t$P) == 0)
-# }
-# View(cbind(vocab,colSums(X_t$P)))
-# X_t$P <- bob
+NN <- rowSums(X_t$P)
+X_t$N <- X_t$P
+for(i in 1:nrow(X_t$P)){
+  X_t$N[i,] <- rmultinom(1,NN[i],freqNeg)
+}
 
+sum(X_t$P)
+sum(X_t$N)
 
-
-# (D,K,sigma_t,tau,nb_epochs)
-# debug(likely)
-model <- init_model(length(vocab),100,1,tau = 1,nb_epochs = 4)
+# debug(optimZero)
+model <- init_model(length(vocab),50,1,tau = 1,nb_epochs = 10)
 vp <- draw_VP(model) 
 
 out <- optimZero(X_t,model,vp)
@@ -380,11 +248,12 @@ vp <- out$vp
 
 N <- length(vocab)
 emb <- model$U[[1]] / apply(model$U[[1]],1,function(x){sqrt(sum(x * x))})
-# emb <- model$U[[1]] 
-embV <- model$V[[1]] / apply(model$V[[1]],1,function(x){sqrt(sum(x * x))})
-# embV <- model$V[[1]] 
+# emb <- model$U[[1]]
+# embV <- model$V[[1]] / apply(model$V[[1]],1,function(x){sqrt(sum(x * x))})
+# embV <- model$V[[1]]
 # apply(emb,1,function(x){sqrt(sum(x * x))})
-cosine <- emb %*% t(embV)
+cosine <- emb %*% t(emb)
+# cosine <- emb %*% t(embV)
 res <- matrix("",N,4)
 for(i in 1:N){
   cso <- cosine[i,]
@@ -394,18 +263,18 @@ for(i in 1:N){
 }
 View(res)
 
-library(plotly)
-Sys.setenv("plotly_username"="AntoineGourru")
-Sys.setenv("plotly_api_key"="Vhnv9xPEeRYTicy0cenf")
-##Ploty
-embedding <- as.data.frame(model$V[[1]] )
-
-p <- plot_ly(embedding, x = ~embedding$V1, y = ~embedding$V2, type = 'scatter', mode = 'markers',
-             text = ~vocab,hoverinfo = 'text')  
-p
-
-
-# # T 2
+# library(plotly)
+# Sys.setenv("plotly_username"="AntoineGourru")
+# Sys.setenv("plotly_api_key"="Vhnv9xPEeRYTicy0cenf")
+# ##Ploty
+# embedding <- as.data.frame(model$U[[1]] )
+# 
+# p <- plot_ly(embedding, x = ~embedding$V1, y = ~embedding$V2, type = 'scatter', mode = 'markers',
+#              text = ~vocab,hoverinfo = 'text')
+# p
+# 
+# api_create(p, filename = "Barkan")
+# T 2
 # iterator <- itoken(data$V4[which(data$year == 2005)], tokenizer=space_tokenizer, progressbar=FALSE)
 # l <- 5
 # X_t$P <- as.matrix(create_tcm(iterator, vectorizer, skip_grams_window=l, weights=rep(1, l)))
@@ -417,6 +286,6 @@ p
 # vp <- out$vp
 # 
 # plot(model$LL[[2]])
-# 
-# 
-# 
+
+
+
