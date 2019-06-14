@@ -5,9 +5,6 @@ sigmoid <- function(x){
 optimZero <- function(X_t,model,vp){
   logLout <- c()
   
-  Ut <- vp$u_mu
-  Vt <- vp$v_mu
-  
   freq <- colSums(X_t$P)
   freq <- freq /sum(freq)
   freq <-  1 - sqrt(0.0001/freq)
@@ -140,11 +137,45 @@ optimZero <- function(X_t,model,vp){
   
   model$timePosition <- model$timePosition + 1 
   
+  N <- nrow(vp$u_mu)
+  
+  emb <- vp$u_mu / apply(vp$u_mu,1,function(x){sqrt(sum(x * x))})
+  cosine <- emb %*% t(emb)
+  res <- matrix("",N,4)
+  for(i in 1:N){
+    cso <- cosine[i,]
+    cso[i] <- -Inf
+    cso[na] <- -Inf
+    res[i,1] <- model$vocab[i]
+    if (i %in% na){
+      res[i,2:4] <- NA
+    }else{
+      res[i,2:4] <- model$vocab[sort(cso,decreasing = T,index.return=T)$ix[1:3]]
+    }
+    
+    
+  }
+  View(res)
+  
+  
   return(model)
 }
 
 optimT <- function(X_t,model){
   vp <- model$vp[[model$timePosition-1]]
+  temp_pri <- vp
+  
+  ####Temporal prior
+  for (i in 1:model$D) {
+    #sigma_t = 1
+    temp_pri$u_sigma[i,] <- 1/(vp$u_sigma[i,] + 1 + model$tau)
+    temp_pri$v_sigma[i,] <- 1/(vp$v_sigma[i,] + 1 + model$tau)
+    
+    temp_pri$u_mu[i,] <- (diag(temp_pri$u_sigma[i,]) %*% diag(vp$u_sigma[i,] + 1)) %*% vp$u_mu[i,]
+    temp_pri$v_mu[i,] <- (diag(temp_pri$v_sigma[i,]) %*% diag(vp$v_sigma[i,] + 1)) %*% vp$v_mu[i,]
+  }
+  
+  
   logLout <- c()
   
   
@@ -163,7 +194,7 @@ optimT <- function(X_t,model){
       na <- c(na,i)
     }
   }
-
+  
   
   #Init P
   oldPu <- list()
@@ -231,10 +262,11 @@ optimT <- function(X_t,model){
           R_v <- R_v + 0.5 * C[j,i] * vp$u_mu[j,]
         }
         
-        P_u <- P_u + diag(rep(model$tau,model$K))
-        P_v <- P_v + diag(rep(model$tau,model$K))
+        P_u <- P_u + diag(rep(model$tau,model$K)) + diag(1/(temp_pri$u_sigma[i,]))
+        P_v <- P_v + diag(rep(model$tau,model$K)) + diag(1/(temp_pri$v_sigma[i,]))
         
-        
+        R_u <- R_u + (diag(1/(temp_pri$u_sigma[i,])) %*% temp_pri$u_mu[i,])
+        R_v <- R_v + (diag(1/(temp_pri$v_sigma[i,])) %*% temp_pri$v_mu[i,])
         
         if(epo>5){
           beta <- (epo-5)^(-0.7)
@@ -325,15 +357,15 @@ likely <- function(Pos,Neg,U,V){
   
   ll <- sum(gauche + droite)
   
-  # ll <- ll +  sum(apply(U,1,function(x){log(dmvnorm(x,rep(0,model$K),diag(rep(1/model$tau,model$K))))}))
-  # ll <- ll +  sum(apply(V,1,function(x){log(dmvnorm(x,rep(0,model$K),diag(rep(1/model$tau,model$K))))}))
+  ll <- ll +  sum(apply(U,1,function(x){log(dmvnorm(x,rep(0,model$K),diag(rep(1/model$tau,model$K))))}))
+  ll <- ll +  sum(apply(V,1,function(x){log(dmvnorm(x,rep(0,model$K),diag(rep(1/model$tau,model$K))))}))
   return(ll)
 }
 
 
-init_model <- function(D,K,sigma_t,tau,nb_epochs){
+init_model <- function(vocab,K,sigma_t,tau,nb_epochs){
   require(MASS)
-  
+  D <- length(vocab)
   model <- list()
   model$sigma_t <- sigma_t
   # model$sigma_0 <- sigma_0
@@ -351,13 +383,15 @@ init_model <- function(D,K,sigma_t,tau,nb_epochs){
   
   model$timePosition <- 1
   model$na <- list()
+  
+  model$vocab <- vocab
   return(model)
 }
 
 # Main
 
 library(readr)
-data <- read_delim("input/export_articles_EGC_2004_2018.csv", 
+data <- read_delim("data/EGC.csv", 
                    "\t", escape_double = FALSE, na = "empty", 
                    trim_ws = TRUE)
 
@@ -365,7 +399,7 @@ data <- data[,c(3,4,5)]
 data[,4] <- apply(data,1,function(x){paste(x[2],x[3])})
 data <- data[,c(1,4)]
 
-ind0 <- which(data$year %in% 2004:2013)
+
 ind1 <- which(data$year %in% 2014:2018)
 
 # Create X
@@ -392,10 +426,10 @@ vectorizer <- vocab_vectorizer(pruned_vocabulary)
 
 X_t_list <- list()
 
-
+ind0 <- which(data$year %in% 2004:2006)
 iterator <- itoken(txt[ind0], tokenizer=space_tokenizer, progressbar=FALSE)
 X_t <- list()
-l <- 4
+l <- 10
 X_t$P <- as.matrix(create_tcm(iterator, vectorizer, skip_grams_window=l,skip_grams_window_context = "symmetric", weights=rep(1, l)))
 X_t$P <- X_t$P + t(X_t$P)
 vocab <- pruned_vocabulary$term
@@ -408,45 +442,48 @@ for(i in 1:nrow(X_t$P)){
 }
 X_t_list[[1]] <- X_t
 
-iterator <- itoken(txt[ind1], tokenizer=space_tokenizer, progressbar=FALSE)
-X_t <- list()
-l <- 4
-X_t$P <- as.matrix(create_tcm(iterator, vectorizer, skip_grams_window=l,skip_grams_window_context = "symmetric", weights=rep(1, l)))
-X_t$P <- X_t$P + t(X_t$P)
-vocab <- pruned_vocabulary$term
-freqNeg <- (rowSums(X_t$P)/sum(rowSums(X_t$P)))^(3/4)
-freqNeg <- freqNeg /sum(freqNeg)
-NN <- rowSums(X_t$P)
-X_t$N <- X_t$P
-for(i in 1:nrow(X_t$P)){
-  X_t$N[i,] <- rmultinom(1,NN[i],freqNeg)
+for(time in 2:13){
+  ind0 <- which(data$year %in% (2005+time))
+  iterator <- itoken(txt[ind0], tokenizer=space_tokenizer, progressbar=FALSE)
+  X_t <- list()
+  l <- 10
+  X_t$P <- as.matrix(create_tcm(iterator, vectorizer, skip_grams_window=l,skip_grams_window_context = "symmetric", weights=rep(1, l)))
+  X_t$P <- X_t$P + t(X_t$P)
+  vocab <- pruned_vocabulary$term
+  freqNeg <- (rowSums(X_t$P)/sum(rowSums(X_t$P)))^(3/4)
+  freqNeg <- freqNeg /sum(freqNeg)
+  NN <- rowSums(X_t$P)
+  X_t$N <- X_t$P
+  for(i in 1:nrow(X_t$P)){
+    X_t$N[i,] <- rmultinom(1,NN[i],freqNeg)
+  }
+  X_t_list[[time]] <- X_t
 }
-X_t_list[[2]] <- X_t
 
 # debug(optimZero)
-model <- init_model(length(vocab),50,1,tau = 1,nb_epochs = 10)
+model <- init_model(vocab,50,1,tau = 1,nb_epochs = 20)
 bob <- optimDWE(X_t_list,model)
 model <- bob
 
-N <- length(vocab)
-emb <- model$vp[[2]]$u_mu / apply(model$vp[[2]]$u_mu,1,function(x){sqrt(sum(x * x))})
-cosine <- emb %*% t(emb)
-res <- matrix("",N,4)
-na <- model$na[[model$timePosition-1]]
-for(i in 1:N){
-  cso <- cosine[i,]
-  cso[i] <- -Inf
-  cso[na] <- -Inf
-  res[i,1] <- vocab[i]
-  if (i %in% na){
-    res[i,2:4] <- NA
-  }else{
-    res[i,2:4] <- vocab[sort(cso,decreasing = T,index.return=T)$ix[1:3]]
-  }
-
-
-}
-View(res)
+# N <- length(vocab)
+# emb <- model$vp[[2]]$u_mu / apply(model$vp[[2]]$u_mu,1,function(x){sqrt(sum(x * x))})
+# cosine <- emb %*% t(emb)
+# res <- matrix("",N,4)
+# na <- model$na[[model$timePosition-1]]
+# for(i in 1:N){
+#   cso <- cosine[i,]
+#   cso[i] <- -Inf
+#   cso[na] <- -Inf
+#   res[i,1] <- vocab[i]
+#   if (i %in% na){
+#     res[i,2:4] <- NA
+#   }else{
+#     res[i,2:4] <- vocab[sort(cso,decreasing = T,index.return=T)$ix[1:3]]
+#   }
+#   
+#   
+# }
+# View(res)
 
 # library(plotly)
 # Sys.setenv("plotly_username"="AntoineGourru")
