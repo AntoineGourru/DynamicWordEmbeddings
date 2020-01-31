@@ -1,6 +1,6 @@
 # DynamicWordEmbeddings
 
-### TO:
+### To Do:
 
 - [ ] Améliorer la creation de la liste de tuples
 - [ ] Sortir les tirages négatifs de "create_dataset"
