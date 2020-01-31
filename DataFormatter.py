@@ -8,7 +8,7 @@ import pickle
 
 #X  : sp matrice
 #k  : number of negatiev examples
-def neg_example(X,k=1):
+def neg_example(X,k):
 
     f_t = normalize(np.sum(X,axis = 1).T, norm='l1')
     freqNeg = np.squeeze(normalize(np.power(f_t,3/4), norm='l1'))
@@ -24,9 +24,9 @@ def neg_example(X,k=1):
 
 #text : list de string
 #years: list de years
-def create_dataset(doc_set,years,en_stop):
+def create_dataset(doc_set,years,en_stop,k=10,max_df=0.25, min_df=20):
 
-    vectorizerTF = TfidfVectorizer(lowercase=True, analyzer="word", stop_words=en_stop, max_df=0.25, min_df=100, norm=None, use_idf=False)
+    vectorizerTF = TfidfVectorizer(lowercase=True, analyzer="word", stop_words=en_stop, max_df=max_df, min_df=min_df, norm=None, use_idf=False)
     tf = vectorizerTF.fit_transform(doc_set)
     ndocs = tf.shape[0]
     vocabulary = vectorizerTF.get_feature_names()
@@ -61,7 +61,7 @@ def create_dataset(doc_set,years,en_stop):
         for dat in ind:
             X[t] += [(dat[0],dat[1],1) for i in range(int(cooc[dat[0],dat[1]]))]
 
-        cooc = neg_example(cooc)
+        cooc = neg_example(cooc,k)
         ind = np.argwhere(cooc > 0)
         
         for dat in ind:

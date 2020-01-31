@@ -576,7 +576,7 @@ write.csv(cbind(rowSums(model$vp[[4]]$u_sigma),model$vocab,freq),"out.csv")
 
 
 library(readr)
-data <- read_delim("data/09_12.csv",
+data <- read_delim("../../data/09_12.csv",
                    "\t", escape_double = FALSE, na = "empty",
                    trim_ws = TRUE)
 # Create X
