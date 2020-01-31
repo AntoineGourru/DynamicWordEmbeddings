@@ -188,8 +188,8 @@ init_model <- function(D,K,sigma_t,tau,nb_epochs){
 # Main
 
 library(readr)
-data <- read_delim("input/export_articles_EGC_2004_2018.csv", 
-                   "\t", escape_double = FALSE, na = "empty", 
+data <- read_delim("../../data/09_12.csv",
+                   "\t", escape_double = FALSE, na = "empty",
                    trim_ws = TRUE)
 # ind <- c(which(data$year == 2017),which(data$year == 2018))
 ind <- 1:nrow(data)
