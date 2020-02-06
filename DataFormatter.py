@@ -6,25 +6,9 @@ from sklearn.feature_extraction.text import TfidfTransformer, TfidfVectorizer
 import scipy.sparse as sp
 import pickle
 
-#X  : sp matrice
-#k  : number of negatiev examples
-def neg_example(X,k):
-
-    f_t = normalize(np.sum(X,axis = 1).T, norm='l1')
-    freqNeg = np.squeeze(normalize(np.power(f_t,3/4), norm='l1'))
-
-    NN = np.sum(X,axis = 1)
-
-    Neg = sp.dok_matrix((X.shape[0],X.shape[1]),dtype = np.int)
-    for i in range(X.shape[0]):
-        Ka = int(NN[0]) * k
-        Neg[i,:] = np.random.multinomial(Ka, freqNeg, size=1)
-      
-    return Neg
-
 #text : list de string
 #years: list de years
-def create_dataset(doc_set,years,en_stop,k=10,max_df=0.25, min_df=20):
+def create_dataset(doc_set,years,en_stop,max_df=0.25, min_df=10):
 
     vectorizerTF = TfidfVectorizer(lowercase=True, analyzer="word", stop_words=en_stop, max_df=max_df, min_df=min_df, norm=None, use_idf=False)
     tf = vectorizerTF.fit_transform(doc_set)
@@ -54,18 +38,8 @@ def create_dataset(doc_set,years,en_stop,k=10,max_df=0.25, min_df=20):
         print(".", end ="")
         temp_tf = sp.diags(doc_year[:,t].toarray().reshape((ndocs, )),0) @ tf
         
-        cooc = temp_tf.T @ temp_tf
-        ind = np.argwhere(cooc > 0)
-        
-        X[t] = []
-        for dat in ind:
-            X[t] += [(dat[0],dat[1],1) for i in range(int(cooc[dat[0],dat[1]]))]
+        X[t] = (temp_tf.T @ temp_tf).tocoo()
 
-        cooc = neg_example(cooc,k)
-        ind = np.argwhere(cooc > 0)
-        
-        for dat in ind:
-            X[t] += [(dat[0],dat[1],-1) for i in range(int(cooc[dat[0],dat[1]]))]
         
     print()
     data = {}
@@ -74,5 +48,3 @@ def create_dataset(doc_set,years,en_stop,k=10,max_df=0.25, min_df=20):
     data['years'] = temp
 
     return data
-
-
