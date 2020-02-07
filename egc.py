@@ -16,6 +16,7 @@ en_stop.add('article')
 en_stop.add('approche')
 en_stop.add('données')
 en_stop.add('non')
+en_stop.update(set(stopwords.words('english')))
 
 data = pd.read_csv('Data/egc.csv',sep = "\t")
 
@@ -24,7 +25,7 @@ doc_set = list(data['txt'])
 years = np.array(data['year'])
 years = years.flatten().tolist()
 
-dataset = create_dataset(doc_set,years,en_stop,l = 5,max_df=0.50, min_df=10)
+dataset = create_dataset(doc_set,years,en_stop,l = 5,max_df=0.50, min_df=5)
 pickle.dump(dataset, open( "Data/egc.dwe", "wb" ) )
 
 inpu = pickle.load( open( "Data/egc.dwe", "rb" ) )
