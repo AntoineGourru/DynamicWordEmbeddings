@@ -40,13 +40,14 @@ class DWE(Model):
     def __init__(self,v,d,T):
         super(DWE, self).__init__()
         self.U = layers.Embedding(v,d)
-        self.V = layers.Embedding(v,d)
+        #self.V = layers.Embedding(v,d)
         
     def call(self, pair):
         i,j,de = tf.split(pair, [1,1,1], 1)
         de = tf.cast(de, tf.float32)
         u = tf.squeeze(self.U(i))
-        v = tf.squeeze(self.V(j))
+        #v = tf.squeeze(self.V(j))
+        v = tf.squeeze(self.U(j))
         x = tf.reduce_sum(tf.multiply(u, v),axis = 1)
         x = tf.expand_dims(x,1)
         x = tf.multiply(de,x)
@@ -66,20 +67,19 @@ def train(model, dataset, optimizer,train_loss):
         
 def compute_nn(i,U,V,voc,n_nn):
     
-    U = normalize(U, axis=1)
-    V = normalize(V, axis=1)
+    U = normalize(U)
+    V = normalize(V)
     print("NN for : ", end="")
     print(voc[i])
-    dist = (U[i,:] @ V.transpose()).flatten()
+    sim = (U[i,:] @ V.transpose()).flatten()
     
-    indi = np.argsort(dist * -1)[1:(n_nn + 1)]
+    indi = np.argsort(sim * -1)
     
-    d = dist[indi]
-    g = []
-    for i in indi:
-        g.append(voc[i])
-    out = dict(zip(g,d))    
+    d = sim[indi][1:(n_nn+1)]
+    g = np.asarray(voc)[indi][1:(n_nn+1)]
+    out = dict(zip(g,d))
     print(out)
+    
 
             
 import pickle
@@ -93,9 +93,6 @@ years = inpu['years']
 cooc = sum([*cooc.values()])
 #cooc = sum([cooc[12],cooc[13],cooc[14]])
 #cooc = cooc[14]
-
-compute_nn(voc2id["classification"],cooc.todense(),cooc.todense(),voc,5)
-
 
 print("Vocabulary of size %d with %d observed cooccurences" % (len(voc),np.sum(cooc)), flush=True)
 
@@ -112,10 +109,10 @@ compute_nn(voc2id["classification"],cooc_f.todense(),cooc_f.todense(),voc,5)
 X = X_pos + X_neg
 data = tf.data.Dataset.from_tensor_slices(np.asarray(X)).shuffle(35000000).batch(256)
 
-dwe = DWE(len(voc),160,1)
+dwe = DWE(len(voc),200,1)
   
 train_loss = tf.keras.metrics.Sum(name='train_loss')
-optimizer = tf.keras.optimizers.Adagrad(learning_rate=0.005)
+optimizer = tf.keras.optimizers.Adagrad(learning_rate=0.01)
 
 nepochs = 10
 
@@ -131,8 +128,8 @@ for epoch in range(nepochs):
     ll.append(train_loss.result())
 
 U = np.array(dwe.U(tf.constant(list(range(len(voc))))))
-V = np.array(dwe.V(tf.constant(list(range(len(voc))))))
-compute_nn(voc2id["classification"],U,V,voc,5)
+#V = np.array(dwe.V(tf.constant(list(range(len(voc))))))
+compute_nn(voc2id["classification"],U,U,voc,5)
 
 import matplotlib.pyplot as plt
 plt.plot(ll)
