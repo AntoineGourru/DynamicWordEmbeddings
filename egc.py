@@ -25,7 +25,7 @@ doc_set = list(data['txt'])
 years = np.array(data['year'])
 years = years.flatten().tolist()
 
-dataset = create_dataset(doc_set,years,en_stop,l = 5,max_df=0.50, min_df=5)
+dataset = create_dataset(doc_set,years,en_stop,l = 5,max_df=0.75, min_df=5)
 pickle.dump(dataset, open( "Data/egc.dwe", "wb" ) )
 
 inpu = pickle.load( open( "Data/egc.dwe", "rb" ) )

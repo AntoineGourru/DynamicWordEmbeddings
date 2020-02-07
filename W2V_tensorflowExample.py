@@ -115,9 +115,9 @@ data = tf.data.Dataset.from_tensor_slices(np.asarray(X)).shuffle(35000000).batch
 dwe = DWE(len(voc),160,1)
   
 train_loss = tf.keras.metrics.Sum(name='train_loss')
-optimizer = tf.keras.optimizers.Adagrad(learning_rate=0.008)
+optimizer = tf.keras.optimizers.Adagrad(learning_rate=0.005)
 
-nepochs = 30
+nepochs = 10
 
 print('Starting Learning', flush=True)
 ll = []
