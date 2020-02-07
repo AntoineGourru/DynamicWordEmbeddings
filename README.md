@@ -2,4 +2,4 @@
 
 ### To Do:
 
-- [ ] cooccurence en fenêtre plutôt que au niveau du document
+- [Antoine] cooccurence en fenêtre plutôt que au niveau du document
