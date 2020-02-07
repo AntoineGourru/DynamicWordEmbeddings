@@ -1,5 +1,6 @@
 # DynamicWordEmbeddings
 
-### To Do:
+### To Do (DWE in tensorflow) 
 
-- [Antoine] cooccurence en fenêtre plutôt que au niveau du document
+- [ ] Init parameters
+- [ ] Write model 
