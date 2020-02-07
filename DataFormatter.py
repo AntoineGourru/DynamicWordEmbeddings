@@ -49,13 +49,15 @@ def create_dataset(doc_set,years,en_stop,l = 5,max_df=0.25, min_df=10):
         
     for i in range(ndocs):
         j = year2id.get(years[i])
-        doc_year[y].append(i)
+        doc_year[j].append(i)
         
     print("Extracted Corpus with %d documents and %d words, spanning %d years" % (ndocs,nvoc,nyears) )
     
     X = {}
     print("Creating word pairs", end ="")
+    
     for t in idi:
+        
         print(".", end ="")
         list_doc = doc_year[t]
         

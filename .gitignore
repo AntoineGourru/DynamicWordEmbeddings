@@ -1,3 +1,4 @@
 Data/09_12.csv
 .gitignore
 Data/egc.dwe
+__pycache/

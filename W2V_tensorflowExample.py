@@ -14,10 +14,10 @@ logger = logging.getLogger()
 #k  : number of negatiev examples
 def neg_example(X,k):
 
-    f_t = normalize(np.sum(X,axis = 1).T, norm='l1')
+    f_t = normalize(np.sum(X,axis = 0), norm='l1')
     freqNeg = np.squeeze(normalize(np.power(f_t,3/4), norm='l1'))
 
-    NN = np.sum(X,axis = 1)
+    NN = np.sum(X,axis = 0).T
 
     Neg = sp.dok_matrix((X.shape[0],X.shape[1]),dtype = np.int)
     for i in range(X.shape[0]):
@@ -92,7 +92,7 @@ years = inpu['years']
 
 cooc = sum([*cooc.values()])
 #cooc = sum([cooc[12],cooc[13],cooc[14]])
-#cooc = cooc[0]
+#cooc = cooc[14]
 
 compute_nn(voc2id["classification"],cooc.todense(),cooc.todense(),voc,5)
 
@@ -100,17 +100,24 @@ compute_nn(voc2id["classification"],cooc.todense(),cooc.todense(),voc,5)
 print("Vocabulary of size %d with %d observed cooccurences" % (len(voc),np.sum(cooc)), flush=True)
 
 X_pos = cooc_to_list(cooc,1)
-X_neg = neg_example(cooc,10)
-X_neg = cooc_to_list(X_neg,-1)
+cooc_neg = neg_example(cooc,5)
+X_neg = cooc_to_list(cooc_neg,-1)
+
+
+cooc_f = cooc - cooc_neg
+cooc_f = normalize(cooc_f)
+
+compute_nn(voc2id["classification"],cooc_f.todense(),cooc_f.todense(),voc,5)
+
 X = X_pos + X_neg
-data = tf.data.Dataset.from_tensor_slices(np.asarray(X)).shuffle(35000000).batch(1024)
+data = tf.data.Dataset.from_tensor_slices(np.asarray(X)).shuffle(35000000).batch(256)
 
 dwe = DWE(len(voc),160,1)
   
 train_loss = tf.keras.metrics.Sum(name='train_loss')
-optimizer = tf.keras.optimizers.Adagrad()
+optimizer = tf.keras.optimizers.Adagrad(learning_rate=0.008)
 
-nepochs = 20
+nepochs = 30
 
 print('Starting Learning', flush=True)
 ll = []
@@ -131,3 +138,4 @@ import matplotlib.pyplot as plt
 plt.plot(ll)
 plt.ylabel('loss')
 plt.show()
+
