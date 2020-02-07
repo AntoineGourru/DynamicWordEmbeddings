@@ -90,8 +90,8 @@ voc2id = dict(zip(voc,list(range(len(voc)))))
 cooc = inpu['data']
 years = inpu['years']
 
-#cooc = sum([*cooc.values()])
-cooc = sum([cooc[12],cooc[13],cooc[14]])
+cooc = sum([*cooc.values()])
+#cooc = sum([cooc[12],cooc[13],cooc[14]])
 #cooc = cooc[0]
 
 compute_nn(voc2id["classification"],cooc.todense(),cooc.todense(),voc,5)
@@ -110,7 +110,7 @@ dwe = DWE(len(voc),160,1)
 train_loss = tf.keras.metrics.Sum(name='train_loss')
 optimizer = tf.keras.optimizers.Adagrad()
 
-nepochs = 3
+nepochs = 20
 
 print('Starting Learning', flush=True)
 ll = []
@@ -127,7 +127,7 @@ U = np.array(dwe.U(tf.constant(list(range(len(voc))))))
 V = np.array(dwe.V(tf.constant(list(range(len(voc))))))
 compute_nn(voc2id["classification"],U,V,voc,5)
 
-#import matplotlib.pyplot as plt
-#plt.plot(ll)
-#plt.ylabel('loss')
-#plt.show()
+import matplotlib.pyplot as plt
+plt.plot(ll)
+plt.ylabel('loss')
+plt.show()
