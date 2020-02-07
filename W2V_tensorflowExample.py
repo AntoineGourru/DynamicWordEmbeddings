@@ -49,7 +49,7 @@ class DWE(Model):
         x = tf.reduce_sum(tf.multiply(u, v),axis = 1)
         x = tf.expand_dims(x,1)
         x = tf.multiply(de,x)
-        x = tf.math.sigmoid(x)
+        x = tf.math.log(tf.math.sigmoid(x))
         return -x
     
 @tf.function
